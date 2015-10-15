@@ -137,9 +137,13 @@ case ${1} in
 	
 	#USERSFILE="/etc/dnsmasq.conf"
 	USERSFILE="/var/lib/misc/dnsmasq.leases"
-	[ -f "${USERSFILE}" ] || USERSFILE="/tmp/dnsmasq.conf"
+	DNSMSQHOSTS="/etc/hosts.dnsmasq"
+	HOSTSFILE="/etc/hosts"
+	#[ -f "${USERSFILE}" ] || USERSFILE="/tmp/dnsmasq.conf"
 	[ -z "${4}" ] || USERSFILE=${4}
 	[ -f "${USERSFILE}" ] || USERSFILE="/dev/null"
+	[ -f "${DNSMSQHOSTS}" ] || DNSMSQHOSTS="/dev/null"
+	[ -f "${HOSTSFILE}" ] || HOSTSFILE="/dev/null"
 
 	# first do some number crunching - rewrite the database so that it is sorted
 	lock
@@ -161,13 +165,15 @@ case ${1} in
         echo "<script type=\"text/javascript\">" >> ${3}
 
         echo "var values = new Array(" >> ${3}
-        sort -n /tmp/sorted_$$.tmp | while IFS=, read IP PEAKUSAGE_IN PEAKUSAGE_OUT OFFPEAKUSAGE_IN OFFPEAKUSAGE_OUT MAC LASTSEEN
+        sort -t . -k 4 -n /tmp/sorted_$$.tmp | while IFS=, read IP PEAKUSAGE_IN PEAKUSAGE_OUT OFFPEAKUSAGE_IN OFFPEAKUSAGE_OUT MAC LASTSEEN
         do
                 echo "new Array(" >> ${3}
                 USER=$(grep -i "${MAC}" "${USERSFILE}" | cut -f4 -s -d' ' )
                 #[ -z "$USER" ] && USER=${MAC}
-                [ -z "$USER" ] && USER=$(grep -i "${IP} " "${USERSFILE}" | cut -f4 -s -d' ' )
-                [ -z "$USER" ] && USER=${MAC}
+                [ -z "$USER" ] && USER=$(grep -w -i "${IP} " "${USERSFILE}" | cut -f4 -s -d' ' )
+                [ -z "$USER" -o "$USER" == "*" -o "$USER" == "$MAC" ] && USER=$(grep -w -i "${IP}" "${DNSMSQHOSTS}" | cut -f2 -s -d' ' )
+                [ -z "$USER" -o "$USER" == "*" -o "$USER" == "$MAC" ] && USER=$(grep -w -i "${IP}" "${HOSTSFILE}" | cut -f2 -s -d' ' )
+                [ -z "$USER" -o "$USER" == "*" ] && USER=${MAC}
                 echo "\"${USER}\",\"${IP}\",${PEAKUSAGE_IN}000,${PEAKUSAGE_OUT}000,${OFFPEAKUSAGE_IN}000,${OFFPEAKUSAGE_OUT}000,\"${LASTSEEN}\")," >> ${3}
         done
         echo "0);" >> ${3}
